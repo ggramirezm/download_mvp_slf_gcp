@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<mule xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce" xmlns="http://www.mulesoft.org/schema/mule/core"
-	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:s3="http://www.mulesoft.org/schema/mule/s3"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/s3 http://www.mulesoft.org/schema/mule/s3/current/mule-s3.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
 	<salesforce:sfdc-config name="Salesforce_UAT_Config" doc:name="Salesforce Config" doc:id="a6473c26-8416-4193-806d-19e9cf535caf" >
 		<salesforce:oauth-user-pass-connection consumerKey="3MVG9vDPWAliPr7pK1VfN5JwEIHC9xFlCM2VJ46YM2p7y0EnIiJc2dpoyYBoTmW0a7wnLdVTzTiiU72J5G.il" consumerSecret="781CC72C62AABAA2BEC977185F104B14C77C817FB02F1763A829913B464BEFA1" username="skyvia-gcp-salesforce@rimac.com.pe.uat" password="Lima123.xzIAZwEh0cjp3aXjwG8wDdn5" tokenEndpoint="https://rimac--uat.sandbox.my.salesforce.com/services/oauth2/token" />
 	</salesforce:sfdc-config>
+	<s3:config name="Amazon_S3_Configuration" doc:name="Amazon S3 Configuration" doc:id="28c325cf-4a7c-4ef1-9373-b718131a7304" >
+		<s3:connection region="us-east-2" />
+	</s3:config>
 	<flow name="download_mvp_slf_gcpFlow" doc:id="471e757e-906d-4e74-ad98-d6d6b6326297" >
 		<scheduler doc:name="Scheduler" doc:id="c8485f81-e9ac-48f8-af8a-b2da0ffc52ac" >
 			<scheduling-strategy >
@@ -14,23 +19,53 @@ http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mu
 			</scheduling-strategy>
 		</scheduler>
 		<logger level="INFO" doc:name="Logger" doc:id="faa6d4d5-7678-4bd6-95eb-6d69d8984f05" message="HELLO WORLD"/>
-		<salesforce:create-query-job-bulk-api-v2 doc:name="Create query job bulk api v 2" doc:id="aa89932c-4617-4557-a82e-dc91432a628f" config-ref="Salesforce_UAT_Config" query="SELECT Id FROM Account LIMIT 1" readTimeoutUnit="HOURS">
+		<ee:transform doc:name="query" doc:id="1f988482-4ea5-447a-a496-02879c1c5759">
+			<ee:message />
+			<ee:variables>
+				<ee:set-variable variableName="query"><![CDATA[%dw 2.0 
+output application/json 
+--- 
+"SELECT Id, F1_FechaUltimaAplicacionISN__c, PersonLastCURequestDate, PersonHasOptedOutOfEmail, PersonMailingLongitude, RS_FacebookUser__c, RS_FechaUltimaAplicacionNPSEOJ__c, RS_FechaUltimaAplicacionNPSRelacional__c, F1_Twitter__pc, F1_LeyProteccionDatos__c, F1_NumeroDocumentoContacto__pc, RS_AFP__c, RS_CloseDateLastPlacement__c, F1_PoliticaComunicacionesComerciales__c, RS_HoldingProducts__c, RS_OpportunityTeam__c, RS_OfertaCross__c, RS_NotReceiveSurveys__c, RS_NotaNPSRelacional__c, RS_NotaNPSEOJ__c, RS_Mobile__c, RS_MngAccount__c, RS_Mejor_canal_comunicacion__c, RS_NextRenewalDate__c, RS_PostSaleFlagCampaign__c, RS_PotentialSale__c, RS_Procedence__c, RS_RecipeExtensionPotentialClient__c, RS_RccNegative__c  FROM Account LIMIT 1000"]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger2" doc:id="680d114e-e2cc-40f8-a4d4-ee7df6fc31ce" message="QUERY -&gt; #[vars.query] " />
+		<salesforce:create-query-job-bulk-api-v2 doc:name="Create query job bulk api v 2" doc:id="aa89932c-4617-4557-a82e-dc91432a628f" config-ref="Salesforce_UAT_Config" query="#[vars.query]" readTimeoutUnit="HOURS">
 			<reconnect-forever />
 		</salesforce:create-query-job-bulk-api-v2>
 		<logger level="INFO" doc:name="Logger" doc:id="76c3ae51-b608-4be7-8185-787f84555a33" message="PAYLOAD -&gt; #[payload.id] "/>
 		<set-variable value="#[payload.id] " doc:name="Set Variable" doc:id="d963b584-7fa1-4165-806d-f6f14f581938" variableName="jobIdQuery"/>
 		<logger level="INFO" doc:name="Logger1" doc:id="09a0cf7b-54dc-472e-8bc1-7fd3caeb4859" message="PAYLOAD -&gt; #[vars.jobIdQuery]" />
-		<until-successful maxRetries="5" doc:name="Until Successful" doc:id="e5c8904f-4994-4297-836b-1cc6073edc0e" >
+		<until-successful maxRetries="5" doc:name="Until Successful" doc:id="e5c8904f-4994-4297-836b-1cc6073edc0e" millisBetweenRetries="10000">
 			<salesforce:get-query-job-info-bulk-api-v2 doc:name="Get query job info bulk api v 2" doc:id="e849e217-a3e3-4471-bfd1-456f4897edb7" config-ref="Salesforce_UAT_Config" id="#[vars.jobIdQuery]" readTimeout="10" readTimeoutUnit="SECONDS"/>
 			<logger level="INFO" doc:name="Logger2" doc:id="5e9ac920-5ccf-4f13-ae1f-3b547e2c9e9a" message="GET JOB -&gt; #[payload.state]" />
 			<choice doc:name="Choice" doc:id="0c66f0b3-9297-419b-8e47-e4bcd6f345a4">
 			<when expression='#[payload.state == "JobComplete"]'>
-				<logger level="INFO" doc:name="Logger3" doc:id="2bbb318c-2e59-4865-9b68-f72e843b3cff" message="JobComplete" />
+				<logger level="INFO" doc:name="Logger3" doc:id="2bbb318c-2e59-4865-9b68-f72e843b3cff" message="JobComplete numberRecordsProcessed -&gt; #[payload.numberRecordsProcessed]" />
+					<salesforce:get-query-job-results-bulk-api-v2 doc:name="Get query job results bulk api v 2" doc:id="4e094c78-eb37-4f50-97f7-7325e319f5be" config-ref="Salesforce_UAT_Config" id="#[vars.jobIdQuery]" maxRecordsPerPage="#[payload.numberRecordsProcessed]"/>
+					<logger level="INFO" doc:name="Logger" doc:id="eb1009c3-5865-44f4-9ca7-f53a9fb75e06" message="RESULT -&gt; "/>
+					<ee:transform doc:name="fileName" doc:id="5dfba52c-09af-4e6c-8aee-6ebc3e1a7da6">
+						<ee:message />
+						<ee:variables>
+							<ee:set-variable variableName="csvResult" ><![CDATA[%dw 2.0
+output application/csv quoteValues=true, encoding="ISO-8859-1"
+---
+payload]]></ee:set-variable>
+						</ee:variables>
+					</ee:transform>
+					<logger level="INFO" doc:name="Logger1" doc:id="71bdd844-80fe-43ca-a1eb-72293afaaa74" message="RESULT sizeOf -&gt; #[sizeOf(vars.csvResult.^raw)]" />
+					<s3:put-object doc:name="Put Object" doc:id="a7e6d9c5-7e34-4301-948f-b7fdd7cee894" config-ref="Amazon_S3_Configuration" bucketName="ue1stgdesaas3sftp001" key="CRM/MULESOFT/test.csv" contentLength="#[sizeOf(vars.csvResult.^raw)]">
+						<s3:content ><![CDATA[#[vars.csvResult]]]></s3:content>
+					</s3:put-object>
+					<logger level="INFO" doc:name="Logger" doc:id="f0a829fb-b6d5-40ee-81df-68ab413c803e" message="S3 - FIN PUT OBJECT" />
 			</when>
-			<otherwise>
-				<logger level="INFO" doc:name="Logger" doc:id="effc8f2d-3cbe-4b33-9f04-15e210c2be99" message="state -&gt; #[payload.state]" />
+				<otherwise>
+				<logger level="INFO" doc:name="Logger" doc:id="effc8f2d-3cbe-4b33-9f04-15e210c2be99" message="state default -&gt; #[payload.state]" />
+					<logger level="INFO" doc:name="CHOICE DEFUAL" doc:id="ab85763e-270d-42af-bae4-53a34e2d6a69" message="S3 - FIN PUT OBJECT" />
+					<raise-error doc:name="Raise error" doc:id="355edd0f-ac51-42d2-b48c-8d34caf33ef1" type="MULE:EXPRESSION"/>
 			</otherwise>
 		</choice>
+			<logger level="INFO" doc:name="FIN CHOICE" doc:id="ffc0a8c3-bfb8-464f-b0d4-7ea2590df7b6" message="FIN CHOICE" />
 		</until-successful>
+		<logger level="INFO" doc:name="Logger" doc:id="155cdb3c-5c73-4ff5-869f-2cb82b990370" message="FIN FLOW" />
 	</flow>
 </mule>
